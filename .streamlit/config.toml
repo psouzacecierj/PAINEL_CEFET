@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#F39C12"              # Laranja da logo
+backgroundColor = "#F6EFE4"           # Bege claro neutro
+secondaryBackgroundColor = "#FFFFFF"  # Cards brancos
+textColor = "#00587A"                 # Azul principal da marca
+font = "sans serif"
