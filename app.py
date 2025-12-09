@@ -11,7 +11,6 @@ with col_titulo:
     st.title("Controle de Cadastro de Reserva – CEFET")
 
 # === 1. Ler base ===
-# === 1. Ler base ===
 @st.cache_data
 def carregar_dados():
     url = "https://docs.google.com/spreadsheets/d/1-tCbTdcdXZBAdvmcJ0WEsztPgxC8-EBz/export?format=xlsx"
@@ -20,7 +19,6 @@ def carregar_dados():
 
 
 df = carregar_dados()
-
 
 # === 2. Buscar grupo por candidato ===
 def buscar_grupo_por_candidato(nome_parcial: str, df_base: pd.DataFrame) -> pd.DataFrame:
@@ -57,9 +55,7 @@ def buscar_grupo_por_candidato(nome_parcial: str, df_base: pd.DataFrame) -> pd.D
 # === 3. Cálculo de KPIs ===
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
-    df_tmp["Prazo para convocação"] = pd.to_datetime(
-        df_tmp["Prazo para convocação"], errors="coerce"
-    )
+    df_tmp["Prazo para convocação"] = pd.to_datetime(df_tmp["Prazo para convocação"], errors="coerce")
     hoje = pd.Timestamp.today().normalize()
 
     expirado_por_prazo = (
@@ -68,9 +64,7 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
         (df_tmp["Prazo para convocação"] < hoje)
     )
 
-    expirado_por_obs = df_tmp["Obs"].fillna("").str.contains(
-        "expirado para convocação", case=False
-    )
+    expirado_por_obs = df_tmp["Obs"].fillna("").str.contains("expirado para convocação", case=False)
 
     expirados_mask = expirado_por_prazo | expirado_por_obs
 
@@ -81,18 +75,15 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
         (~expirados_mask)
     ).sum()
     expirados = expirados_mask.sum()
-
     outros = total - (convocados + aguardando + expirados)
 
-    kpis = {
+    return {
         "Total de candidatos": total,
         "Convocados": convocados,
         "Aguardando convocação": aguardando,
         "Expirados": expirados,
         "Outros status": outros,
     }
-
-    return kpis
 
 # -------------------------------------------------------------------
 # 4. KPIs na tela
@@ -105,16 +96,12 @@ col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
     st.metric("Total de candidatos", kpis["Total de candidatos"])
-
 with col2:
     st.metric("Convocados", kpis["Convocados"])
-
 with col3:
     st.metric("Aguardando convocação", kpis["Aguardando convocação"])
-
 with col4:
     st.metric("Expirados", kpis["Expirados"])
-
 with col5:
     st.metric("Outros status", kpis["Outros status"])
 
@@ -126,6 +113,7 @@ nome = st.text_input("Digite pelo menos 3 letras do nome:")
 
 if nome and len(nome.strip()) >= 3:
     resultado = buscar_grupo_por_candidato(nome.strip(), df)
+
     if resultado.empty:
         st.info("Nenhum candidato encontrado para essa busca.")
     else:
@@ -133,7 +121,9 @@ if nome and len(nome.strip()) >= 3:
         for col in ["Prazo para convocação", "Validade pagamento bolsa", "Data convocação"]:
             if col in df_mostrar.columns:
                 df_mostrar[col] = pd.to_datetime(df_mostrar[col], errors="coerce")
+
         st.dataframe(df_mostrar, width="stretch")
+
 elif nome:
     st.warning("Digite pelo menos 3 letras do nome.")
 
@@ -160,7 +150,7 @@ df_filtrado = df_edital.copy()
 if grupo_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Grupo"] == grupo_sel]
 
-# garantir Disciplina como texto
+# Garantir Disciplina como texto
 df_filtrado["Disciplina"] = df_filtrado["Disciplina"].astype(str)
 
 disc_options = ["(todas)"] + sorted(df_filtrado["Disciplina"].dropna().unique().tolist())
