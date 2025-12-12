@@ -19,21 +19,19 @@ with col_titulo:
 # ------------------------------------------------------
 # LEITURA DA BASE
 # ------------------------------------------------------
-@st.cache_data(ttl=60)   # cache atualizado
+@st.cache_data(ttl=60)
 def carregar_dados():
-    # NOVA URL (ID atualizado + /export?format=xlsx)
     url = "https://docs.google.com/spreadsheets/d/1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ/export?format=xlsx"
     df = pd.read_excel(url)
     return df
 
 df = carregar_dados()
 
-# 🔎 Verificação rápida (opcional — remova depois)
+# (opcional — remova depois)
 st.write(sorted(df["Edital"].dropna().unique().tolist()))
-# Agora deve aparecer: “2025/1 - CEDERJ/UAB”
 
 # ------------------------------------------------------
-# FORMATAR DATAS (sem 00:00:00)
+# FORMATAR DATAS
 # ------------------------------------------------------
 def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
     col_datas = [
@@ -129,7 +127,7 @@ col5.metric("Outros status", kpis["Outros status"])
 st.markdown("---")
 
 # ------------------------------------------------------
-# BUSCA POR CANDIDATO — TODAS AS OCORRÊNCIAS
+# BUSCA POR CANDIDATO
 # ------------------------------------------------------
 st.subheader("Buscar candidato (todas as ocorrências)")
 nome = st.text_input("Digite pelo menos 3 letras do nome:")
@@ -174,6 +172,9 @@ disc_sel = st.selectbox("Disciplina", options=disc_options)
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
+# 🔽 CORREÇÃO AQUI
+df_filtrado["Posição"] = pd.to_numeric(df_filtrado["Posição"], errors="coerce")
+
 colunas_layout = [
     "Edital", "Grupo", "Disciplina", "Posição",
     "Candidato", "Titulação", "Status",
@@ -181,7 +182,7 @@ colunas_layout = [
     "Data convocação", "Obs",
 ]
 
-df_mostrar = df_filtrado.sort_values(by="Posição")[colunas_layout].copy()
+df_mostrar = df_filtrado.sort_values(by="Posição", na_position="last")[colunas_layout].copy()
 df_mostrar = formatar_datas(df_mostrar)
 
 st.dataframe(df_mostrar, width="stretch")
