@@ -27,11 +27,9 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 🔽 LIMPAR APENAS CABEÇALHO DUPLICADO
-df = df[df["Edital"] != "Edital"]
-
-# (opcional — remova depois)
-st.write(sorted(df["Edital"].dropna().unique().tolist()))
+# 🔽 LIMPAR LINHAS SUJEIRA
+df = df[df["Edital"] != "Edital"]                         # remove cabeçalho duplicado
+df = df[df["Grupo"].notna() & df["Disciplina"].notna()]  # remove linhas com nan (142 e 143)
 
 # ------------------------------------------------------
 # FORMATAR DATAS
