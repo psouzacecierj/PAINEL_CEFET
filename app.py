@@ -27,6 +27,9 @@ def carregar_dados():
 
 df = carregar_dados()
 
+# 🔽 LIMPAR APENAS CABEÇALHO DUPLICADO
+df = df[df["Edital"] != "Edital"]
+
 # (opcional — remova depois)
 st.write(sorted(df["Edital"].dropna().unique().tolist()))
 
@@ -172,7 +175,7 @@ disc_sel = st.selectbox("Disciplina", options=disc_options)
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
-# 🔽 CORREÇÃO AQUI
+# 🔽 GARANTIR QUE POSIÇÃO É NUMÉRICA
 df_filtrado["Posição"] = pd.to_numeric(df_filtrado["Posição"], errors="coerce")
 
 colunas_layout = [
