@@ -19,13 +19,18 @@ with col_titulo:
 # ------------------------------------------------------
 # LEITURA DA BASE
 # ------------------------------------------------------
-@st.cache_data
+@st.cache_data(ttl=60)   # cache atualizado
 def carregar_dados():
-    url = "https://docs.google.com/spreadsheets/d/1-tCbTdcdXZBAdvmcJ0WEsztPgxC8-EBz/export?format=xlsx"
+    # NOVA URL (ID atualizado + /export?format=xlsx)
+    url = "https://docs.google.com/spreadsheets/d/1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ/export?format=xlsx"
     df = pd.read_excel(url)
     return df
 
 df = carregar_dados()
+
+# 🔎 Verificação rápida (opcional — remova depois)
+st.write(sorted(df["Edital"].dropna().unique().tolist()))
+# Agora deve aparecer: “2025/1 - CEDERJ/UAB”
 
 # ------------------------------------------------------
 # FORMATAR DATAS (sem 00:00:00)
