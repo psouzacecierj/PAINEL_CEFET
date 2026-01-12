@@ -21,17 +21,17 @@ with col_titulo:
 # ------------------------------------------------------
 # LEITURA DA BASE
 # ------------------------------------------------------
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60)  # pode aumentar depois se quiser
 def carregar_dados():
     url = (
         "https://docs.google.com/spreadsheets/d/"
-        "1RfdOdLtTJdCIo9mFhKV2NpS_DTi1lN-mhrwV5KCV42Q"
+        "1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ"
         "/export?format=xlsx"
     )
+    # se quiser garantir a aba:
+    # df = pd.read_excel(url, sheet_name="2025/1 - CEDERJ/UAB")
     df = pd.read_excel(url)
     return df
-
-
 df = carregar_dados()
 
 # 🔽 LIMPAR LINHAS SUJEIRA
