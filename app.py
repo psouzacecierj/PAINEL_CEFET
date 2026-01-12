@@ -17,19 +17,25 @@ with col_titulo:
     st.title("Controle de Cadastro de Reserva – CEFET")
 
 # ------------------------------------------------------
-# LEITURA DA BASE
+# LEITURA DA BASE (GOOGLE PLANILHAS)
 # ------------------------------------------------------
 @st.cache_data(ttl=60)
 def carregar_dados():
-    url = "https://docs.google.com/spreadsheets/d/1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ/export?format=xlsx"
-    df = pd.read_excel(url)
+    url = (
+        "https://docs.google.com/spreadsheets/d/"
+        "1RfdOdLtTJdCIo9mFhKV2NpS_DTi1lN-mhrwV5KCV42Q"
+        "/export?format=csv"
+    )
+    df = pd.read_csv(url)
     return df
 
 df = carregar_dados()
 
-# 🔽 LIMPAR LINHAS SUJEIRA
-df = df[df["Edital"] != "Edital"]                         # remove cabeçalho duplicado
-df = df[df["Grupo"].notna() & df["Disciplina"].notna()]  # remove linhas com nan (142 e 143)
+# ------------------------------------------------------
+# LIMPEZA DE LINHAS SUJEIRA
+# ------------------------------------------------------
+df = df[df["Edital"] != "Edital"]
+df = df[df["Grupo"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
 # FORMATAR DATAS
@@ -38,7 +44,7 @@ def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
     col_datas = [
         "Prazo para convocação",
         "Validade pagamento bolsa",
-        "Data convocação"
+        "Data convocação",
     ]
     for col in col_datas:
         if col in df_mostrar.columns:
@@ -76,7 +82,10 @@ def buscar_ocorrencias_candidato(nome_parcial: str, df_base: pd.DataFrame) -> pd
 # ------------------------------------------------------
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
-    df_tmp["Prazo para convocação"] = pd.to_datetime(df_tmp["Prazo para convocação"], errors="coerce")
+    df_tmp["Prazo para convocação"] = pd.to_datetime(
+        df_tmp["Prazo para convocação"], errors="coerce"
+    )
+
     hoje = pd.Timestamp.today().normalize()
 
     expirado_por_prazo = (
@@ -85,7 +94,12 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
         (df_tmp["Prazo para convocação"] < hoje)
     )
 
-    expirado_por_obs = df_tmp["Obs"].fillna("").str.contains("expirado para convocação", case=False)
+    expirado_por_obs = (
+        df_tmp["Obs"]
+        .fillna("")
+        .str.contains("expirado para convocação", case=False)
+    )
+
     expirados_mask = expirado_por_prazo | expirado_por_obs
 
     total = len(df_tmp)
@@ -115,7 +129,6 @@ opcoes_edital_kpi = ["(todos)"] + sorted(df["Edital"].dropna().unique().tolist()
 edital_kpi = st.selectbox("Filtrar indicadores por edital:", opcoes_edital_kpi)
 
 df_kpi = df if edital_kpi == "(todos)" else df[df["Edital"] == edital_kpi]
-
 kpis = calcular_kpis(df_kpi)
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -173,7 +186,6 @@ disc_sel = st.selectbox("Disciplina", options=disc_options)
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
-# 🔽 GARANTIR QUE POSIÇÃO É NUMÉRICA
 df_filtrado["Posição"] = pd.to_numeric(df_filtrado["Posição"], errors="coerce")
 
 colunas_layout = [
@@ -183,7 +195,11 @@ colunas_layout = [
     "Data convocação", "Obs",
 ]
 
-df_mostrar = df_filtrado.sort_values(by="Posição", na_position="last")[colunas_layout].copy()
-df_mostrar = formatar_datas(df_mostrar)
+df_mostrar = (
+    df_filtrado
+    .sort_values(by="Posição", na_position="last")[colunas_layout]
+    .copy()
+)
 
+df_mostrar = formatar_datas(df_mostrar)
 st.dataframe(df_mostrar, width="stretch")
