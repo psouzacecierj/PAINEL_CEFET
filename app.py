@@ -11,29 +11,30 @@ st.set_page_config(
 
 # --- Logo + Título ---
 col_logo, col_titulo = st.columns([1, 4])
+
 with col_logo:
     st.image("logo-cecierj.png", width="stretch")
+
 with col_titulo:
     st.title("Controle de Cadastro de Reserva – CEFET")
 
 # ------------------------------------------------------
-# LEITURA DA BASE (GOOGLE PLANILHAS)
+# LEITURA DA BASE
 # ------------------------------------------------------
 @st.cache_data(ttl=60)
 def carregar_dados():
     url = (
         "https://docs.google.com/spreadsheets/d/"
         "1RfdOdLtTJdCIo9mFhKV2NpS_DTi1lN-mhrwV5KCV42Q"
-        "/export?format=csv"
+        "/export?format=xlsx"
     )
-    df = pd.read_csv(url)
+    df = pd.read_excel(url)
     return df
+
 
 df = carregar_dados()
 
-# ------------------------------------------------------
-# LIMPEZA DE LINHAS SUJEIRA
-# ------------------------------------------------------
+# 🔽 LIMPAR LINHAS SUJEIRA
 df = df[df["Edital"] != "Edital"]
 df = df[df["Grupo"].notna() & df["Disciplina"].notna()]
 
@@ -46,33 +47,52 @@ def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
         "Validade pagamento bolsa",
         "Data convocação",
     ]
+
     for col in col_datas:
         if col in df_mostrar.columns:
             df_mostrar[col] = pd.to_datetime(df_mostrar[col], errors="coerce")
             df_mostrar[col] = df_mostrar[col].dt.strftime("%d/%m/%Y")
+
     return df_mostrar
 
 # ------------------------------------------------------
 # BUSCAR TODAS AS OCORRÊNCIAS DO CANDIDATO
 # ------------------------------------------------------
-def buscar_ocorrencias_candidato(nome_parcial: str, df_base: pd.DataFrame) -> pd.DataFrame:
-    mask_nome = df_base["Candidato"].str.contains(nome_parcial, case=False, na=False)
+def buscar_ocorrencias_candidato(
+    nome_parcial: str,
+    df_base: pd.DataFrame
+) -> pd.DataFrame:
+
+    mask_nome = df_base["Candidato"].str.contains(
+        nome_parcial,
+        case=False,
+        na=False
+    )
+
     df_encontrados = df_base[mask_nome].copy()
 
     if df_encontrados.empty:
         return pd.DataFrame()
 
     colunas_layout = [
-        "Edital", "Grupo", "Disciplina", "Posição",
-        "Candidato", "Titulação", "Status",
-        "Prazo para convocação", "Validade pagamento bolsa",
-        "Data convocação", "Obs",
+        "Edital",
+        "Grupo",
+        "Disciplina",
+        "Posição",
+        "Candidato",
+        "Titulação",
+        "Status",
+        "Prazo para convocação",
+        "Validade pagamento bolsa",
+        "Data convocação",
+        "Obs",
     ]
 
     df_encontrados = (
         df_encontrados
-        .sort_values(by=["Candidato", "Edital", "Grupo", "Disciplina", "Posição"])
-        [colunas_layout]
+        .sort_values(
+            by=["Candidato", "Edital", "Grupo", "Disciplina", "Posição"]
+        )[colunas_layout]
     )
 
     return df_encontrados
@@ -82,16 +102,18 @@ def buscar_ocorrencias_candidato(nome_parcial: str, df_base: pd.DataFrame) -> pd
 # ------------------------------------------------------
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
+
     df_tmp["Prazo para convocação"] = pd.to_datetime(
-        df_tmp["Prazo para convocação"], errors="coerce"
+        df_tmp["Prazo para convocação"],
+        errors="coerce"
     )
 
     hoje = pd.Timestamp.today().normalize()
 
     expirado_por_prazo = (
-        (df_tmp["Status"] != "Convocado") &
-        df_tmp["Prazo para convocação"].notna() &
-        (df_tmp["Prazo para convocação"] < hoje)
+        (df_tmp["Status"] != "Convocado")
+        & df_tmp["Prazo para convocação"].notna()
+        & (df_tmp["Prazo para convocação"] < hoje)
     )
 
     expirado_por_obs = (
@@ -105,8 +127,8 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
     total = len(df_tmp)
     convocados = (df_tmp["Status"] == "Convocado").sum()
     aguardando = (
-        (df_tmp["Status"] == "Aguardando convocação") &
-        (~expirados_mask)
+        (df_tmp["Status"] == "Aguardando convocação")
+        & (~expirados_mask)
     ).sum()
     expirados = expirados_mask.sum()
     outros = total - (convocados + aguardando + expirados)
@@ -125,13 +147,20 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
 st.markdown("---")
 st.subheader("Indicadores")
 
-opcoes_edital_kpi = ["(todos)"] + sorted(df["Edital"].dropna().unique().tolist())
-edital_kpi = st.selectbox("Filtrar indicadores por edital:", opcoes_edital_kpi)
+opcoes_edital_kpi = ["(todos)"] + sorted(
+    df["Edital"].dropna().unique().tolist()
+)
+
+edital_kpi = st.selectbox(
+    "Filtrar indicadores por edital:",
+    opcoes_edital_kpi
+)
 
 df_kpi = df if edital_kpi == "(todos)" else df[df["Edital"] == edital_kpi]
 kpis = calcular_kpis(df_kpi)
 
 col1, col2, col3, col4, col5 = st.columns(5)
+
 col1.metric("Total de candidatos", kpis["Total de candidatos"])
 col2.metric("Convocados", kpis["Convocados"])
 col3.metric("Aguardando convocação", kpis["Aguardando convocação"])
@@ -144,6 +173,7 @@ st.markdown("---")
 # BUSCA POR CANDIDATO
 # ------------------------------------------------------
 st.subheader("Buscar candidato (todas as ocorrências)")
+
 nome = st.text_input("Digite pelo menos 3 letras do nome:")
 
 if nome and len(nome.strip()) >= 3:
@@ -165,34 +195,52 @@ st.markdown("---")
 # ------------------------------------------------------
 st.subheader("Fila por Edital / Grupo / Disciplina")
 
-opcoes_edital = ["(todos)"] + sorted(df["Edital"].dropna().unique().tolist())
+opcoes_edital = ["(todos)"] + sorted(
+    df["Edital"].dropna().unique().tolist()
+)
+
 edital_sel = st.selectbox("Edital", options=opcoes_edital)
 
 df_filtrado = df.copy()
+
 if edital_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Edital"] == edital_sel]
 
 df_filtrado["Grupo"] = df_filtrado["Grupo"].astype(str)
 grupo_options = ["(todos)"] + sorted(df_filtrado["Grupo"].unique().tolist())
+
 grupo_sel = st.selectbox("Grupo", options=grupo_options)
 
 if grupo_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Grupo"] == grupo_sel]
 
 df_filtrado["Disciplina"] = df_filtrado["Disciplina"].astype(str)
-disc_options = ["(todas)"] + sorted(df_filtrado["Disciplina"].unique().tolist())
+disc_options = ["(todas)"] + sorted(
+    df_filtrado["Disciplina"].unique().tolist()
+)
+
 disc_sel = st.selectbox("Disciplina", options=disc_options)
 
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
-df_filtrado["Posição"] = pd.to_numeric(df_filtrado["Posição"], errors="coerce")
+df_filtrado["Posição"] = pd.to_numeric(
+    df_filtrado["Posição"],
+    errors="coerce"
+)
 
 colunas_layout = [
-    "Edital", "Grupo", "Disciplina", "Posição",
-    "Candidato", "Titulação", "Status",
-    "Prazo para convocação", "Validade pagamento bolsa",
-    "Data convocação", "Obs",
+    "Edital",
+    "Grupo",
+    "Disciplina",
+    "Posição",
+    "Candidato",
+    "Titulação",
+    "Status",
+    "Prazo para convocação",
+    "Validade pagamento bolsa",
+    "Data convocação",
+    "Obs",
 ]
 
 df_mostrar = (
@@ -202,4 +250,5 @@ df_mostrar = (
 )
 
 df_mostrar = formatar_datas(df_mostrar)
+
 st.dataframe(df_mostrar, width="stretch")
