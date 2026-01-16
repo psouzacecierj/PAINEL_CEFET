@@ -9,7 +9,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Logo + Título ---
+# ------------------------------------------------------
+# LOGO + TÍTULO
+# ------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 4])
 
 with col_logo:
@@ -21,25 +23,25 @@ with col_titulo:
 # ------------------------------------------------------
 # LEITURA DA BASE
 # ------------------------------------------------------
-@st.cache_data(ttl=60)  # pode aumentar depois se quiser
-def carregar_dados():
+@st.cache_data(ttl=60)
+def carregar_dados() -> pd.DataFrame:
     url = (
         "https://docs.google.com/spreadsheets/d/"
         "1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ"
         "/export?format=xlsx"
     )
-    # se quiser garantir a aba:
-    # df = pd.read_excel(url, sheet_name="2025/1 - CEDERJ/UAB")
-    df = pd.read_excel(url)
-    return df
+    return pd.read_excel(url)
+
 df = carregar_dados()
 
-# 🔽 LIMPAR LINHAS SUJEIRA
+# ------------------------------------------------------
+# LIMPEZA DE LINHAS SUJEIRA
+# ------------------------------------------------------
 df = df[df["Edital"] != "Edital"]
 df = df[df["Grupo"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
-# FORMATAR DATAS
+# FORMATAÇÃO DE DATAS
 # ------------------------------------------------------
 def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
     col_datas = [
@@ -50,13 +52,15 @@ def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
 
     for col in col_datas:
         if col in df_mostrar.columns:
-            df_mostrar[col] = pd.to_datetime(df_mostrar[col], errors="coerce")
-            df_mostrar[col] = df_mostrar[col].dt.strftime("%d/%m/%Y")
+            df_mostrar[col] = pd.to_datetime(
+                df_mostrar[col],
+                errors="coerce"
+            ).dt.strftime("%d/%m/%Y")
 
     return df_mostrar
 
 # ------------------------------------------------------
-# BUSCAR TODAS AS OCORRÊNCIAS DO CANDIDATO
+# BUSCA POR CANDIDATO
 # ------------------------------------------------------
 def buscar_ocorrencias_candidato(
     nome_parcial: str,
@@ -88,14 +92,12 @@ def buscar_ocorrencias_candidato(
         "Obs",
     ]
 
-    df_encontrados = (
+    return (
         df_encontrados
         .sort_values(
             by=["Candidato", "Edital", "Grupo", "Disciplina", "Posição"]
         )[colunas_layout]
     )
-
-    return df_encontrados
 
 # ------------------------------------------------------
 # CÁLCULO DE KPIs
@@ -167,11 +169,10 @@ col3.metric("Aguardando convocação", kpis["Aguardando convocação"])
 col4.metric("Expirados", kpis["Expirados"])
 col5.metric("Outros status", kpis["Outros status"])
 
-st.markdown("---")
-
 # ------------------------------------------------------
 # BUSCA POR CANDIDATO
 # ------------------------------------------------------
+st.markdown("---")
 st.subheader("Buscar candidato (todas as ocorrências)")
 
 nome = st.text_input("Digite pelo menos 3 letras do nome:")
@@ -182,48 +183,55 @@ if nome and len(nome.strip()) >= 3:
     if resultado.empty:
         st.info("Nenhum candidato encontrado para essa busca.")
     else:
-        df_mostrar = formatar_datas(resultado.copy())
-        st.dataframe(df_mostrar, width="stretch")
+        st.dataframe(
+            formatar_datas(resultado.copy()),
+            width="stretch"
+        )
 
 elif nome:
     st.warning("Digite pelo menos 3 letras do nome.")
 
+# ------------------------------------------------------
+# FILTROS TIPO EXCEL (AJUSTADOS)
+# ------------------------------------------------------
 st.markdown("---")
-
-# ------------------------------------------------------
-# FILTROS TIPO EXCEL
-# ------------------------------------------------------
 st.subheader("Fila por Edital / Grupo / Disciplina")
 
-opcoes_edital = ["(todos)"] + sorted(
-    df["Edital"].dropna().unique().tolist()
-)
-
-edital_sel = st.selectbox("Edital", options=opcoes_edital)
-
+# Sempre trabalhar com cópia limpa
 df_filtrado = df.copy()
+
+# ---- FILTRO EDITAL ----
+opcoes_edital = ["(todos)"] + sorted(
+    df_filtrado["Edital"].dropna().unique().tolist()
+)
+edital_sel = st.selectbox("Edital", options=opcoes_edital)
 
 if edital_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Edital"] == edital_sel]
 
-df_filtrado["Grupo"] = df_filtrado["Grupo"].astype(str)
-grupo_options = ["(todos)"] + sorted(df_filtrado["Grupo"].unique().tolist())
+# ---- FILTRO GRUPO (somente valores reais da coluna Grupo) ----
+df_filtrado = df_filtrado[df_filtrado["Grupo"].notna()]
 
+grupo_options = ["(todos)"] + sorted(
+    df_filtrado["Grupo"].dropna().unique().tolist()
+)
 grupo_sel = st.selectbox("Grupo", options=grupo_options)
 
 if grupo_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Grupo"] == grupo_sel]
 
-df_filtrado["Disciplina"] = df_filtrado["Disciplina"].astype(str)
-disc_options = ["(todas)"] + sorted(
-    df_filtrado["Disciplina"].unique().tolist()
-)
+# ---- FILTRO DISCIPLINA ----
+df_filtrado = df_filtrado[df_filtrado["Disciplina"].notna()]
 
+disc_options = ["(todas)"] + sorted(
+    df_filtrado["Disciplina"].dropna().unique().tolist()
+)
 disc_sel = st.selectbox("Disciplina", options=disc_options)
 
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
+# ---- TRATAMENTO DA POSIÇÃO E EXIBIÇÃO ----
 df_filtrado["Posição"] = pd.to_numeric(
     df_filtrado["Posição"],
     errors="coerce"
