@@ -192,12 +192,11 @@ elif nome:
     st.warning("Digite pelo menos 3 letras do nome.")
 
 # ------------------------------------------------------
-# FILTROS TIPO EXCEL (AJUSTADOS)
+# FILTROS TIPO EXCEL (CORRIGIDOS)
 # ------------------------------------------------------
 st.markdown("---")
 st.subheader("Fila por Edital / Grupo / Disciplina")
 
-# Sempre trabalhar com cópia limpa
 df_filtrado = df.copy()
 
 # ---- FILTRO EDITAL ----
@@ -209,16 +208,17 @@ edital_sel = st.selectbox("Edital", options=opcoes_edital)
 if edital_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Edital"] == edital_sel]
 
-# ---- FILTRO GRUPO (somente valores reais da coluna Grupo) ----
-df_filtrado = df_filtrado[df_filtrado["Grupo"].notna()]
+# ---- FILTRO GRUPO (ROBUSTO) ----
+grupos_validos = df_filtrado["Grupo"].dropna()
+grupos_str = grupos_validos.astype(str).unique().tolist()
 
-grupo_options = ["(todos)"] + sorted(
-    df_filtrado["Grupo"].dropna().unique().tolist()
-)
+grupo_options = ["(todos)"] + sorted(grupos_str)
 grupo_sel = st.selectbox("Grupo", options=grupo_options)
 
 if grupo_sel != "(todos)":
-    df_filtrado = df_filtrado[df_filtrado["Grupo"] == grupo_sel]
+    df_filtrado = df_filtrado[
+        df_filtrado["Grupo"].astype(str) == grupo_sel
+    ]
 
 # ---- FILTRO DISCIPLINA ----
 df_filtrado = df_filtrado[df_filtrado["Disciplina"].notna()]
