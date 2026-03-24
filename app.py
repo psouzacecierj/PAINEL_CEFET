@@ -80,7 +80,7 @@ def buscar_ocorrencias_candidato(
 
     colunas_layout = [
         "Edital",
-        "Grupo",
+        "Função",
         "Disciplina",
         "Posição",
         "Candidato",
@@ -95,7 +95,7 @@ def buscar_ocorrencias_candidato(
     return (
         df_encontrados
         .sort_values(
-            by=["Candidato", "Edital", "Grupo", "Disciplina", "Posição"]
+            by=["Candidato", "Edital", "Função", "Disciplina", "Posição"]
         )[colunas_layout]
     )
 
