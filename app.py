@@ -38,7 +38,7 @@ df = carregar_dados()
 # LIMPEZA DE LINHAS SUJEIRA
 # ------------------------------------------------------
 df = df[df["Edital"] != "Edital"]
-df = df[df["Grupo"].notna() & df["Disciplina"].notna()]
+df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
 # FORMATAÇÃO DE DATAS
@@ -192,10 +192,10 @@ elif nome:
     st.warning("Digite pelo menos 3 letras do nome.")
 
 # ------------------------------------------------------
-# FILTROS TIPO EXCEL (CORRIGIDOS)
+# FILTROS TIPO EXCEL
 # ------------------------------------------------------
 st.markdown("---")
-st.subheader("Fila por Edital / Grupo / Disciplina")
+st.subheader("Fila por Edital / Função / Disciplina")
 
 df_filtrado = df.copy()
 
@@ -208,16 +208,16 @@ edital_sel = st.selectbox("Edital", options=opcoes_edital)
 if edital_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Edital"] == edital_sel]
 
-# ---- FILTRO GRUPO (ROBUSTO) ----
-grupos_validos = df_filtrado["Grupo"].dropna()
-grupos_str = grupos_validos.astype(str).unique().tolist()
+# ---- FILTRO FUNÇÃO ----
+funcoes_validas = df_filtrado["Função"].dropna()
+funcoes_str = funcoes_validas.astype(str).unique().tolist()
 
-grupo_options = ["(todos)"] + sorted(grupos_str)
-grupo_sel = st.selectbox("Grupo", options=grupo_options)
+funcao_options = ["(todos)"] + sorted(funcoes_str)
+funcao_sel = st.selectbox("Função", options=funcao_options)
 
-if grupo_sel != "(todos)":
+if funcao_sel != "(todos)":
     df_filtrado = df_filtrado[
-        df_filtrado["Grupo"].astype(str) == grupo_sel
+        df_filtrado["Função"].astype(str) == funcao_sel
     ]
 
 # ---- FILTRO DISCIPLINA ----
@@ -239,7 +239,7 @@ df_filtrado["Posição"] = pd.to_numeric(
 
 colunas_layout = [
     "Edital",
-    "Grupo",
+    "Função",
     "Disciplina",
     "Posição",
     "Candidato",
