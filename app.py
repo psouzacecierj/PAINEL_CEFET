@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # ------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA (DEVE SER A PRIMEIRA COISA APÓS IMPORTS)
+# CONFIGURAÇÃO DA PÁGINA
 # ------------------------------------------------------
 st.set_page_config(
     page_title="CCR – CEFET",
@@ -42,24 +42,26 @@ df = carregar_dados()
 if df.empty:
     st.stop()
 
-# ======================================================
-# DIAGNÓSTICO - VER O QUE ESTÁ SENDO LIDO
-# ======================================================
-st.subheader("🔍 Diagnóstico - Valores únicos encontrados:")
+# ------------------------------------------------------
+# LIMPEZA COMPLETA DE LINHAS SUJEIRA
+# ------------------------------------------------------
+# Remover cabeçalhos repetidos
+df = df[df["Edital"] != "Edital"]
 
-with st.expander("Ver valores únicos na planilha"):
-    st.write("**Disciplinas únicas:**")
-    st.write(df["Disciplina"].dropna().unique().tolist())
-    
-    st.write("**Status únicos:**")
-    st.write(df["Status"].dropna().unique().tolist())
-    
-    st.write("**Funções únicas:**")
-    st.write(df["Função"].dropna().unique().tolist())
-    
-    st.write("**Editais únicos:**")
-    st.write(df["Edital"].dropna().unique().tolist())
-# ======================================================
+# Remover linhas onde Disciplina é cabeçalho ou valor inválido
+df = df[~df["Disciplina"].astype(str).str.contains("Disciplina", case=False, na=False)]
+df = df[~df["Disciplina"].astype(str).str.contains("Posição Cotas", case=False, na=False)]
+
+# Remover linhas onde Status é inválido
+df = df[~df["Status"].astype(str).str.contains("Data convocação", case=False, na=False)]
+df = df[~df["Status"].astype(str).str.contains("julho", case=False, na=False)]
+
+# Remover linhas onde Função é inválida
+df = df[~df["Função"].astype(str).str.contains("Posição Ampla Concorrêcia", case=False, na=False)]
+df = df[~df["Função"].astype(str).str.contains("^1$|^2$", case=False, na=False, regex=True)]
+
+# Remover linhas com valores nulos essenciais
+df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
 # FUNÇÃO PARA CONVERTER DATAS EM DIFERENTES FORMATOS
@@ -71,7 +73,7 @@ def converter_data(data_str):
     
     data_str = str(data_str).strip()
     
-    # Formato: "Março de 2025"
+    # Formato: "Março de 2025" ou "julho de 2025"
     match = re.match(r"(\w+) de (\d{4})", data_str)
     if match:
         mes_nome, ano = match.groups()
@@ -91,12 +93,6 @@ def converter_data(data_str):
             continue
     
     return pd.NaT
-
-# ------------------------------------------------------
-# LIMPEZA DE LINHAS SUJEIRA
-# ------------------------------------------------------
-df = df[df["Edital"] != "Edital"]
-df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
 # FORMATAÇÃO DE DATAS PARA EXIBIÇÃO
@@ -164,7 +160,8 @@ def buscar_ocorrencias_candidato(
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
 
-    df_tmp["Prazo para convocação"] = df_tmp["Prazo para convocação"].apply(converter_data)
+    if "Prazo para convocação" in df_tmp.columns:
+        df_tmp["Prazo para convocação"] = df_tmp["Prazo para convocação"].apply(converter_data)
 
     hoje = pd.Timestamp.today().normalize()
 
@@ -172,23 +169,23 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
         (df_tmp["Status"] != "Convocado")
         & df_tmp["Prazo para convocação"].notna()
         & (df_tmp["Prazo para convocação"] < hoje)
-    )
+    ) if "Prazo para convocação" in df_tmp.columns else pd.Series([False] * len(df_tmp))
 
     expirado_por_obs = (
         df_tmp["Obs"]
         .fillna("")
         .astype(str)
         .str.contains("expirado para convocação", case=False, na=False)
-    )
+    ) if "Obs" in df_tmp.columns else pd.Series([False] * len(df_tmp))
 
     expirados_mask = expirado_por_prazo | expirado_por_obs
 
     total = len(df_tmp)
-    convocados = (df_tmp["Status"] == "Convocado").sum()
+    convocados = (df_tmp["Status"] == "Convocado").sum() if "Status" in df_tmp.columns else 0
     aguardando = (
         (df_tmp["Status"] == "Aguardando convocação")
         & (~expirados_mask)
-    ).sum()
+    ).sum() if "Status" in df_tmp.columns else 0
     expirados = expirados_mask.sum()
     outros = total - (convocados + aguardando + expirados)
 
@@ -257,17 +254,6 @@ st.subheader("📋 Fila por Edital / Função / Disciplina")
 
 df_filtrado = df.copy()
 
-# ---- REMOVER LINHAS INDESEJADAS ANTES DOS FILTROS ----
-# Remover linhas onde Disciplina contém "posição por cotas" ou "posição por ampla concorrência"
-df_filtrado = df_filtrado[
-    ~df_filtrado["Disciplina"].astype(str).str.contains("posição por cotas|posição por ampla concorrência", case=False, na=False)
-]
-
-# Remover linhas onde Status contém "data da convocação"
-df_filtrado = df_filtrado[
-    ~df_filtrado["Status"].astype(str).str.contains("data da convocação", case=False, na=False)
-]
-
 # ---- FILTRO EDITAL ----
 opcoes_edital = ["(todos)"] + sorted(
     df_filtrado["Edital"].dropna().unique().tolist()
@@ -280,9 +266,6 @@ if edital_sel != "(todos)":
 # ---- FILTRO FUNÇÃO ----
 funcoes_validas = df_filtrado["Função"].dropna()
 funcoes_str = funcoes_validas.astype(str).unique().tolist()
-
-# Remover "ampla concorrência" da lista
-funcoes_str = [f for f in funcoes_str if "ampla concorrência" not in f.lower()]
 
 funcao_options = ["(todos)"] + sorted(funcoes_str)
 funcao_sel = st.selectbox("💼 Função", options=funcao_options)
