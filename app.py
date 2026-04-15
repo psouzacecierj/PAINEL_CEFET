@@ -7,7 +7,7 @@ import re
 # CONFIGURAÇÃO DA PÁGINA
 # ------------------------------------------------------
 st.set_page_config(
-    page_title="CCR – CEFET",
+    page_title="CCR – CEFET/RJ",
     layout="wide"
 )
 
