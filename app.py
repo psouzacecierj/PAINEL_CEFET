@@ -64,11 +64,41 @@ df = df[~df["Função"].astype(str).str.contains("^1$|^2$", case=False, na=False
 df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
-# FORMATAÇÃO DE DATAS (AGORA SEM CONVERSÃO - MANTÉM ORIGINAL)
+# FUNÇÃO PARA CONVERTER DATAS PARA CÁLCULO
+# ------------------------------------------------------
+def converter_para_calculo(data_str):
+    """Converte diferentes formatos de data para objeto datetime"""
+    if pd.isna(data_str) or data_str == "":
+        return pd.NaT
+    
+    data_str = str(data_str).strip()
+    
+    # Formato: "Março de 2025" ou "01/03/2023"
+    match = re.match(r"(\w+) de (\d{4})", data_str)
+    if match:
+        mes_nome, ano = match.groups()
+        meses = {
+            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
+            "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
+            "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+        }
+        mes_num = meses.get(mes_nome, 1)
+        return datetime(int(ano), mes_num, 1)
+    
+    # Formato: "01/03/2025" ou "30/06/27"
+    for fmt in ["%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%Y-%m-%d"]:
+        try:
+            return datetime.strptime(data_str, fmt)
+        except:
+            continue
+    
+    return pd.NaT
+
+# ------------------------------------------------------
+# FORMATAÇÃO DE DATAS PARA EXIBIÇÃO
 # ------------------------------------------------------
 def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
     """Mantém as datas exatamente como estão na planilha"""
-    # Não faz nenhuma conversão - mantém o formato original
     return df_mostrar
 
 # ------------------------------------------------------
@@ -114,50 +144,25 @@ def buscar_ocorrencias_candidato(
     )
 
 # ------------------------------------------------------
-# CÁLCULO DE KPIs (SEM CONVERSÃO DE DATAS)
+# CÁLCULO DE KPIS (COM RECUSOU E SEM OUTROS STATUS)
 # ------------------------------------------------------
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
 
-    # Tenta converter datas apenas para cálculo de expiração
-    def converter_para_calculo(data_str):
-        if pd.isna(data_str) or data_str == "":
-            return pd.NaT
-        
-        data_str = str(data_str).strip()
-        
-        # Formato: "Março de 2025"
-        match = re.match(r"(\w+) de (\d{4})", data_str)
-        if match:
-            mes_nome, ano = match.groups()
-            meses = {
-                "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
-                "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
-                "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
-            }
-            mes_num = meses.get(mes_nome, 1)
-            return datetime(int(ano), mes_num, 1)
-        
-        # Formato: "01/03/2025"
-        for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
-            try:
-                return datetime.strptime(data_str, fmt)
-            except:
-                continue
-        
-        return pd.NaT
-
+    # Converte datas para cálculo de expiração
     if "Prazo para convocação" in df_tmp.columns:
         df_tmp["Prazo para convocação_calc"] = df_tmp["Prazo para convocação"].apply(converter_para_calculo)
 
     hoje = pd.Timestamp.today().normalize()
 
+    # Expirados por prazo
     expirado_por_prazo = (
         (df_tmp["Status"] != "Convocado")
         & df_tmp["Prazo para convocação_calc"].notna()
         & (df_tmp["Prazo para convocação_calc"] < hoje)
     ) if "Prazo para convocação_calc" in df_tmp.columns else pd.Series([False] * len(df_tmp))
 
+    # Expirados por observação
     expirado_por_obs = (
         df_tmp["Obs"]
         .fillna("")
@@ -169,19 +174,16 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
 
     total = len(df_tmp)
     convocados = (df_tmp["Status"] == "Convocado").sum() if "Status" in df_tmp.columns else 0
-    aguardando = (
-        (df_tmp["Status"] == "Aguardando convocação")
-        & (~expirados_mask)
-    ).sum() if "Status" in df_tmp.columns else 0
+    aguardando = (df_tmp["Status"] == "Aguardando convocação").sum() if "Status" in df_tmp.columns else 0
+    recusou = (df_tmp["Status"] == "Recusou").sum() if "Status" in df_tmp.columns else 0
     expirados = expirados_mask.sum()
-    outros = total - (convocados + aguardando + expirados)
 
     return {
         "Total de candidatos": total,
         "Convocados": convocados,
         "Aguardando convocação": aguardando,
         "Expirados": expirados,
-        "Outros status": outros,
+        "Recusou": recusou,
     }
 
 # ------------------------------------------------------
@@ -202,13 +204,14 @@ edital_kpi = st.selectbox(
 df_kpi = df if edital_kpi == "(todos)" else df[df["Edital"] == edital_kpi]
 kpis = calcular_kpis(df_kpi)
 
+# 5 colunas para os KPIs
 col1, col2, col3, col4, col5 = st.columns(5)
 
-col1.metric("📝 Total de candidatos", kpis["Total de candidatos"])
+col1.metric("📝 Total", kpis["Total de candidatos"])
 col2.metric("✅ Convocados", kpis["Convocados"])
-col3.metric("⏳ Aguardando convocação", kpis["Aguardando convocação"])
+col3.metric("⏳ Aguardando", kpis["Aguardando convocação"])
 col4.metric("⚠️ Expirados", kpis["Expirados"])
-col5.metric("🔄 Outros status", kpis["Outros status"])
+col5.metric("❌ Recusou", kpis["Recusou"])
 
 # ------------------------------------------------------
 # BUSCA POR CANDIDATO
@@ -314,6 +317,5 @@ if "Posição" in colunas_existentes:
 else:
     df_mostrar = df_filtrado[colunas_existentes].copy()
 
-# NÃO converte datas - mantém original
 st.caption(f"📊 Mostrando {len(df_mostrar)} registro(s)")
 st.dataframe(df_mostrar, use_container_width=True)
