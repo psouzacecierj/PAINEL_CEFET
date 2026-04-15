@@ -1,5 +1,7 @@
 import pandas as pd
 import streamlit as st
+from datetime import datetime
+import re
 
 # ------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -25,10 +27,7 @@ with col_titulo:
 # ------------------------------------------------------
 @st.cache_data(ttl=60)
 def carregar_dados() -> pd.DataFrame:
-    # ID da sua planilha Google Sheets
     sheet_id = "1by0MnnKcCZcAhUepxbPvNa1tVZevVZOrU15ST0fbAfw"
-    
-    # URL de exportação em CSV (mais rápido que XLSX)
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     
     try:
@@ -36,7 +35,6 @@ def carregar_dados() -> pd.DataFrame:
         return df
     except Exception as e:
         st.error(f"Erro ao carregar planilha: {str(e)}")
-        st.info("Verifique se a planilha está compartilhada como 'Qualquer pessoa com o link'")
         return pd.DataFrame()
 
 df = carregar_dados()
@@ -45,13 +43,44 @@ if df.empty:
     st.stop()
 
 # ------------------------------------------------------
+# FUNÇÃO PARA CONVERTER DATAS EM DIFERENTES FORMATOS
+# ------------------------------------------------------
+def converter_data(data_str):
+    """Converte diferentes formatos de data para objeto datetime"""
+    if pd.isna(data_str) or data_str == "":
+        return pd.NaT
+    
+    data_str = str(data_str).strip()
+    
+    # Formato: "Março de 2025"
+    match = re.match(r"(\w+) de (\d{4})", data_str)
+    if match:
+        mes_nome, ano = match.groups()
+        meses = {
+            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
+            "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
+            "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+        }
+        mes_num = meses.get(mes_nome, 1)
+        return datetime(int(ano), mes_num, 1)
+    
+    # Formato: "01/03/2025" ou "01-03-2025"
+    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
+        try:
+            return datetime.strptime(data_str, fmt)
+        except:
+            continue
+    
+    return pd.NaT
+
+# ------------------------------------------------------
 # LIMPEZA DE LINHAS SUJEIRA
 # ------------------------------------------------------
 df = df[df["Edital"] != "Edital"]
 df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
-# FORMATAÇÃO DE DATAS
+# FORMATAÇÃO DE DATAS PARA EXIBIÇÃO
 # ------------------------------------------------------
 def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
     col_datas = [
@@ -62,12 +91,67 @@ def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
 
     for col in col_datas:
         if col in df_mostrar.columns:
-            df_mostrar[col] = pd.to_datetime(
-                df_mostrar[col],
-                errors="coerce"
-            ).dt.strftime("%d/%m/%Y")
+            # Converte para datetime usando a função flexível
+            df_mostrar[col] = df_mostrar[col].apply(converter_data)
+            # Formata para exibição
+            df_mostrar[col] = df_mostrar[col].dt.strftime("%d/%m/%Y")
+            df_mostrar[col] = df_mostrar[col].fillna("")
 
     return df_mostrar
+
+# ------------------------------------------------------
+# CÁLCULO DE KPIs (ATUALIZADO PARA NÃO QUEBRAR COM DATAS)
+# ------------------------------------------------------
+def calcular_kpis(df_base: pd.DataFrame) -> dict:
+    df_tmp = df_base.copy()
+
+    # Converte datas para cálculo
+    df_tmp["Prazo para convocação"] = df_tmp["Prazo para convocação"].apply(converter_data)
+
+    hoje = pd.Timestamp.today().normalize()
+
+    expirado_por_prazo = (
+        (df_tmp["Status"] != "Convocado")
+        & df_tmp["Prazo para convocação"].notna()
+        & (df_tmp["Prazo para convocação"] < hoje)
+    )
+
+    expirado_por_obs = (
+        df_tmp["Obs"]
+        .fillna("")
+        .astype(str)
+        .str.contains("expirado para convocação", case=False, na=False)
+    )
+    
+    # Verifica também se há "remanejamento" nos status
+    remanejamento = (
+        df_tmp["Status"]
+        .fillna("")
+        .astype(str)
+        .str.contains("remanejamento", case=False, na=False)
+    )
+
+    expirados_mask = expirado_por_prazo | expirado_por_obs
+
+    total = len(df_tmp)
+    convocados = (df_tmp["Status"] == "Convocado").sum()
+    aguardando = (
+        (df_tmp["Status"] == "Aguardando convocação")
+        & (~expirados_mask)
+        & (~remanejamento)
+    ).sum()
+    expirados = expirados_mask.sum()
+    remanejados = remanejamento.sum()
+    outros = total - (convocados + aguardando + expirados + remanejados)
+
+    return {
+        "Total de candidatos": total,
+        "Convocados": convocados,
+        "Aguardando convocação": aguardando,
+        "Expirados": expirados,
+        "Remanejados": remanejados,
+        "Outros status": outros,
+    }
 
 # ------------------------------------------------------
 # BUSCA POR CANDIDATO
@@ -102,56 +186,14 @@ def buscar_ocorrencias_candidato(
         "Obs",
     ]
 
+    colunas_existentes = [col for col in colunas_layout if col in df_encontrados.columns]
+
     return (
         df_encontrados
         .sort_values(
             by=["Candidato", "Edital", "Função", "Disciplina", "Posição"]
-        )[colunas_layout]
+        )[colunas_existentes]
     )
-
-# ------------------------------------------------------
-# CÁLCULO DE KPIs
-# ------------------------------------------------------
-def calcular_kpis(df_base: pd.DataFrame) -> dict:
-    df_tmp = df_base.copy()
-
-    df_tmp["Prazo para convocação"] = pd.to_datetime(
-        df_tmp["Prazo para convocação"],
-        errors="coerce"
-    )
-
-    hoje = pd.Timestamp.today().normalize()
-
-    expirado_por_prazo = (
-        (df_tmp["Status"] != "Convocado")
-        & df_tmp["Prazo para convocação"].notna()
-        & (df_tmp["Prazo para convocação"] < hoje)
-    )
-
-    expirado_por_obs = (
-        df_tmp["Obs"]
-        .fillna("")
-        .str.contains("expirado para convocação", case=False)
-    )
-
-    expirados_mask = expirado_por_prazo | expirado_por_obs
-
-    total = len(df_tmp)
-    convocados = (df_tmp["Status"] == "Convocado").sum()
-    aguardando = (
-        (df_tmp["Status"] == "Aguardando convocação")
-        & (~expirados_mask)
-    ).sum()
-    expirados = expirados_mask.sum()
-    outros = total - (convocados + aguardando + expirados)
-
-    return {
-        "Total de candidatos": total,
-        "Convocados": convocados,
-        "Aguardando convocação": aguardando,
-        "Expirados": expirados,
-        "Outros status": outros,
-    }
 
 # ------------------------------------------------------
 # KPIs COM FILTRO POR EDITAL
@@ -171,13 +213,14 @@ edital_kpi = st.selectbox(
 df_kpi = df if edital_kpi == "(todos)" else df[df["Edital"] == edital_kpi]
 kpis = calcular_kpis(df_kpi)
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
-col1.metric("📝 Total de candidatos", kpis["Total de candidatos"])
+col1.metric("📝 Total", kpis["Total de candidatos"])
 col2.metric("✅ Convocados", kpis["Convocados"])
-col3.metric("⏳ Aguardando convocação", kpis["Aguardando convocação"])
+col3.metric("⏳ Aguardando", kpis["Aguardando convocação"])
 col4.metric("⚠️ Expirados", kpis["Expirados"])
-col5.metric("🔄 Outros status", kpis["Outros status"])
+col5.metric("🔄 Remanejados", kpis["Remanejados"])
+col6.metric("📌 Outros", kpis["Outros status"])
 
 # ------------------------------------------------------
 # BUSCA POR CANDIDATO
@@ -242,11 +285,21 @@ disc_sel = st.selectbox("📚 Disciplina", options=disc_options)
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
 
-# ---- TRATAMENTO DA POSIÇÃO E EXIBIÇÃO ----
-df_filtrado["Posição"] = pd.to_numeric(
-    df_filtrado["Posição"],
-    errors="coerce"
+# ---- FILTRO STATUS (NOVO!) ----
+status_options = ["(todos)"] + sorted(
+    df_filtrado["Status"].dropna().unique().tolist()
 )
+status_sel = st.selectbox("🏷️ Status", options=status_options)
+
+if status_sel != "(todos)":
+    df_filtrado = df_filtrado[df_filtrado["Status"] == status_sel]
+
+# ---- TRATAMENTO DA POSIÇÃO E EXIBIÇÃO ----
+if "Posição" in df_filtrado.columns:
+    df_filtrado["Posição"] = pd.to_numeric(
+        df_filtrado["Posição"],
+        errors="coerce"
+    )
 
 colunas_layout = [
     "Edital",
@@ -262,12 +315,18 @@ colunas_layout = [
     "Obs",
 ]
 
-df_mostrar = (
-    df_filtrado
-    .sort_values(by="Posição", na_position="last")[colunas_layout]
-    .copy()
-)
+colunas_existentes = [col for col in colunas_layout if col in df_filtrado.columns]
+
+if "Posição" in colunas_existentes:
+    df_mostrar = (
+        df_filtrado
+        .sort_values(by="Posição", na_position="last")[colunas_existentes]
+        .copy()
+    )
+else:
+    df_mostrar = df_filtrado[colunas_existentes].copy()
 
 df_mostrar = formatar_datas(df_mostrar)
 
+st.caption(f"📊 Mostrando {len(df_mostrar)} registro(s)")
 st.dataframe(df_mostrar, use_container_width=True)
