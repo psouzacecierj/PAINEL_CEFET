@@ -42,6 +42,25 @@ df = carregar_dados()
 if df.empty:
     st.stop()
 
+# ======================================================
+# DIAGNÓSTICO - VER O QUE ESTÁ SENDO LIDO
+# ======================================================
+st.subheader("🔍 Diagnóstico - Valores únicos encontrados:")
+
+with st.expander("Ver valores únicos na planilha"):
+    st.write("**Disciplinas únicas:**")
+    st.write(df["Disciplina"].dropna().unique().tolist())
+    
+    st.write("**Status únicos:**")
+    st.write(df["Status"].dropna().unique().tolist())
+    
+    st.write("**Funções únicas:**")
+    st.write(df["Função"].dropna().unique().tolist())
+    
+    st.write("**Editais únicos:**")
+    st.write(df["Edital"].dropna().unique().tolist())
+# ======================================================
+
 # ------------------------------------------------------
 # FUNÇÃO PARA CONVERTER DATAS EM DIFERENTES FORMATOS
 # ------------------------------------------------------
