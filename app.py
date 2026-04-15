@@ -238,6 +238,17 @@ st.subheader("📋 Fila por Edital / Função / Disciplina")
 
 df_filtrado = df.copy()
 
+# ---- REMOVER LINHAS INDESEJADAS ANTES DOS FILTROS ----
+# Remover linhas onde Disciplina contém "posição por cotas" ou "posição por ampla concorrência"
+df_filtrado = df_filtrado[
+    ~df_filtrado["Disciplina"].astype(str).str.contains("posição por cotas|posição por ampla concorrência", case=False, na=False)
+]
+
+# Remover linhas onde Status contém "data da convocação"
+df_filtrado = df_filtrado[
+    ~df_filtrado["Status"].astype(str).str.contains("data da convocação", case=False, na=False)
+]
+
 # ---- FILTRO EDITAL ----
 opcoes_edital = ["(todos)"] + sorted(
     df_filtrado["Edital"].dropna().unique().tolist()
@@ -251,6 +262,7 @@ if edital_sel != "(todos)":
 funcoes_validas = df_filtrado["Função"].dropna()
 funcoes_str = funcoes_validas.astype(str).unique().tolist()
 
+# Remover "ampla concorrência" da lista
 funcoes_str = [f for f in funcoes_str if "ampla concorrência" not in f.lower()]
 
 funcao_options = ["(todos)"] + sorted(funcoes_str)
@@ -265,7 +277,6 @@ if funcao_sel != "(todos)":
 df_filtrado = df_filtrado[df_filtrado["Disciplina"].notna()]
 
 disc_validas = df_filtrado["Disciplina"].dropna().unique().tolist()
-disc_validas = [d for d in disc_validas if "posição por cotas" not in d.lower()]
 
 disc_options = ["(todas)"] + sorted(disc_validas)
 disc_sel = st.selectbox("📚 Disciplina", options=disc_options)
@@ -275,7 +286,6 @@ if disc_sel != "(todas)":
 
 # ---- FILTRO STATUS ----
 status_validos = df_filtrado["Status"].dropna().unique().tolist()
-status_validos = [s for s in status_validos if "data da convocação" not in s.lower()]
 
 status_options = ["(todos)"] + sorted(status_validos)
 status_sel = st.selectbox("🏷️ Status", options=status_options)
