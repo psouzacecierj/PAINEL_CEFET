@@ -64,52 +64,11 @@ df = df[~df["Função"].astype(str).str.contains("^1$|^2$", case=False, na=False
 df = df[df["Função"].notna() & df["Disciplina"].notna()]
 
 # ------------------------------------------------------
-# FUNÇÃO PARA CONVERTER DATAS EM DIFERENTES FORMATOS
-# ------------------------------------------------------
-def converter_data(data_str):
-    """Converte diferentes formatos de data para objeto datetime"""
-    if pd.isna(data_str) or data_str == "":
-        return pd.NaT
-    
-    data_str = str(data_str).strip()
-    
-    # Formato: "Março de 2025" ou "julho de 2025"
-    match = re.match(r"(\w+) de (\d{4})", data_str)
-    if match:
-        mes_nome, ano = match.groups()
-        meses = {
-            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
-            "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
-            "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
-        }
-        mes_num = meses.get(mes_nome, 1)
-        return datetime(int(ano), mes_num, 1)
-    
-    # Formato: "01/03/2025" ou "01-03-2025"
-    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
-        try:
-            return datetime.strptime(data_str, fmt)
-        except:
-            continue
-    
-    return pd.NaT
-
-# ------------------------------------------------------
-# FORMATAÇÃO DE DATAS PARA EXIBIÇÃO
+# FORMATAÇÃO DE DATAS (AGORA SEM CONVERSÃO - MANTÉM ORIGINAL)
 # ------------------------------------------------------
 def formatar_datas(df_mostrar: pd.DataFrame) -> pd.DataFrame:
-    col_datas = [
-        "Prazo para convocação",
-        "Validade pagamento bolsa",
-        "Data convocação",
-    ]
-
-    for col in col_datas:
-        if col in df_mostrar.columns:
-            df_mostrar[col] = df_mostrar[col].apply(converter_data)
-            df_mostrar[col] = df_mostrar[col].dt.strftime("%d/%m/%Y")
-            df_mostrar[col] = df_mostrar[col].fillna("")
-
+    """Mantém as datas exatamente como estão na planilha"""
+    # Não faz nenhuma conversão - mantém o formato original
     return df_mostrar
 
 # ------------------------------------------------------
@@ -155,21 +114,49 @@ def buscar_ocorrencias_candidato(
     )
 
 # ------------------------------------------------------
-# CÁLCULO DE KPIs
+# CÁLCULO DE KPIs (SEM CONVERSÃO DE DATAS)
 # ------------------------------------------------------
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
 
+    # Tenta converter datas apenas para cálculo de expiração
+    def converter_para_calculo(data_str):
+        if pd.isna(data_str) or data_str == "":
+            return pd.NaT
+        
+        data_str = str(data_str).strip()
+        
+        # Formato: "Março de 2025"
+        match = re.match(r"(\w+) de (\d{4})", data_str)
+        if match:
+            mes_nome, ano = match.groups()
+            meses = {
+                "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
+                "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
+                "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+            }
+            mes_num = meses.get(mes_nome, 1)
+            return datetime(int(ano), mes_num, 1)
+        
+        # Formato: "01/03/2025"
+        for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]:
+            try:
+                return datetime.strptime(data_str, fmt)
+            except:
+                continue
+        
+        return pd.NaT
+
     if "Prazo para convocação" in df_tmp.columns:
-        df_tmp["Prazo para convocação"] = df_tmp["Prazo para convocação"].apply(converter_data)
+        df_tmp["Prazo para convocação_calc"] = df_tmp["Prazo para convocação"].apply(converter_para_calculo)
 
     hoje = pd.Timestamp.today().normalize()
 
     expirado_por_prazo = (
         (df_tmp["Status"] != "Convocado")
-        & df_tmp["Prazo para convocação"].notna()
-        & (df_tmp["Prazo para convocação"] < hoje)
-    ) if "Prazo para convocação" in df_tmp.columns else pd.Series([False] * len(df_tmp))
+        & df_tmp["Prazo para convocação_calc"].notna()
+        & (df_tmp["Prazo para convocação_calc"] < hoje)
+    ) if "Prazo para convocação_calc" in df_tmp.columns else pd.Series([False] * len(df_tmp))
 
     expirado_por_obs = (
         df_tmp["Obs"]
@@ -327,7 +314,6 @@ if "Posição" in colunas_existentes:
 else:
     df_mostrar = df_filtrado[colunas_existentes].copy()
 
-df_mostrar = formatar_datas(df_mostrar)
-
+# NÃO converte datas - mantém original
 st.caption(f"📊 Mostrando {len(df_mostrar)} registro(s)")
 st.dataframe(df_mostrar, use_container_width=True)
