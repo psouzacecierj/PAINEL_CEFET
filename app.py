@@ -15,24 +15,34 @@ st.set_page_config(
 col_logo, col_titulo = st.columns([1, 4])
 
 with col_logo:
-    st.image("logo-cecierj.png", width="stretch")
+    st.image("logo-cecierj.png", width=150)
 
 with col_titulo:
     st.title("Controle de Cadastro de Reserva – CEFET")
 
 # ------------------------------------------------------
-# LEITURA DA BASE
+# LEITURA DA BASE (Google Sheets - CSV)
 # ------------------------------------------------------
 @st.cache_data(ttl=60)
 def carregar_dados() -> pd.DataFrame:
-    url = (
-        "https://docs.google.com/spreadsheets/d/"
-        "1wAIF2-cHGP8wQpoDBVBp--xi_7-wuhTQ"
-        "/export?format=xlsx"
-    )
-    return pd.read_excel(url)
+    # ID da sua planilha Google Sheets
+    sheet_id = "1by0MnnKcCZcAhUepxbPvNa1tVZevVZOrU15ST0fbAfw"
+    
+    # URL de exportação em CSV (mais rápido que XLSX)
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    
+    try:
+        df = pd.read_csv(url)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar planilha: {str(e)}")
+        st.info("Verifique se a planilha está compartilhada como 'Qualquer pessoa com o link'")
+        return pd.DataFrame()
 
 df = carregar_dados()
+
+if df.empty:
+    st.stop()
 
 # ------------------------------------------------------
 # LIMPEZA DE LINHAS SUJEIRA
@@ -147,7 +157,7 @@ def calcular_kpis(df_base: pd.DataFrame) -> dict:
 # KPIs COM FILTRO POR EDITAL
 # ------------------------------------------------------
 st.markdown("---")
-st.subheader("Indicadores")
+st.subheader("📊 Indicadores")
 
 opcoes_edital_kpi = ["(todos)"] + sorted(
     df["Edital"].dropna().unique().tolist()
@@ -163,17 +173,17 @@ kpis = calcular_kpis(df_kpi)
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
-col1.metric("Total de candidatos", kpis["Total de candidatos"])
-col2.metric("Convocados", kpis["Convocados"])
-col3.metric("Aguardando convocação", kpis["Aguardando convocação"])
-col4.metric("Expirados", kpis["Expirados"])
-col5.metric("Outros status", kpis["Outros status"])
+col1.metric("📝 Total de candidatos", kpis["Total de candidatos"])
+col2.metric("✅ Convocados", kpis["Convocados"])
+col3.metric("⏳ Aguardando convocação", kpis["Aguardando convocação"])
+col4.metric("⚠️ Expirados", kpis["Expirados"])
+col5.metric("🔄 Outros status", kpis["Outros status"])
 
 # ------------------------------------------------------
 # BUSCA POR CANDIDATO
 # ------------------------------------------------------
 st.markdown("---")
-st.subheader("Buscar candidato (todas as ocorrências)")
+st.subheader("🔍 Buscar candidato (todas as ocorrências)")
 
 nome = st.text_input("Digite pelo menos 3 letras do nome:")
 
@@ -181,21 +191,22 @@ if nome and len(nome.strip()) >= 3:
     resultado = buscar_ocorrencias_candidato(nome.strip(), df)
 
     if resultado.empty:
-        st.info("Nenhum candidato encontrado para essa busca.")
+        st.info("ℹ️ Nenhum candidato encontrado para essa busca.")
     else:
+        st.success(f"✅ {len(resultado)} ocorrência(s) encontrada(s)")
         st.dataframe(
             formatar_datas(resultado.copy()),
-            width="stretch"
+            use_container_width=True
         )
 
 elif nome:
-    st.warning("Digite pelo menos 3 letras do nome.")
+    st.warning("⚠️ Digite pelo menos 3 letras do nome.")
 
 # ------------------------------------------------------
 # FILTROS TIPO EXCEL
 # ------------------------------------------------------
 st.markdown("---")
-st.subheader("Fila por Edital / Função / Disciplina")
+st.subheader("📋 Fila por Edital / Função / Disciplina")
 
 df_filtrado = df.copy()
 
@@ -203,7 +214,7 @@ df_filtrado = df.copy()
 opcoes_edital = ["(todos)"] + sorted(
     df_filtrado["Edital"].dropna().unique().tolist()
 )
-edital_sel = st.selectbox("Edital", options=opcoes_edital)
+edital_sel = st.selectbox("📌 Edital", options=opcoes_edital)
 
 if edital_sel != "(todos)":
     df_filtrado = df_filtrado[df_filtrado["Edital"] == edital_sel]
@@ -213,7 +224,7 @@ funcoes_validas = df_filtrado["Função"].dropna()
 funcoes_str = funcoes_validas.astype(str).unique().tolist()
 
 funcao_options = ["(todos)"] + sorted(funcoes_str)
-funcao_sel = st.selectbox("Função", options=funcao_options)
+funcao_sel = st.selectbox("💼 Função", options=funcao_options)
 
 if funcao_sel != "(todos)":
     df_filtrado = df_filtrado[
@@ -226,7 +237,7 @@ df_filtrado = df_filtrado[df_filtrado["Disciplina"].notna()]
 disc_options = ["(todas)"] + sorted(
     df_filtrado["Disciplina"].dropna().unique().tolist()
 )
-disc_sel = st.selectbox("Disciplina", options=disc_options)
+disc_sel = st.selectbox("📚 Disciplina", options=disc_options)
 
 if disc_sel != "(todas)":
     df_filtrado = df_filtrado[df_filtrado["Disciplina"] == disc_sel]
@@ -259,4 +270,4 @@ df_mostrar = (
 
 df_mostrar = formatar_datas(df_mostrar)
 
-st.dataframe(df_mostrar, width="stretch")
+st.dataframe(df_mostrar, use_container_width=True)
