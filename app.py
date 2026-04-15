@@ -144,39 +144,21 @@ def buscar_ocorrencias_candidato(
     )
 
 # ------------------------------------------------------
-# CÁLCULO DE KPIS (COM RECUSOU E SEM OUTROS STATUS)
+# CÁLCULO DE KPIS (CORRIGIDO PARA CONTAR "Expirado" DA PLANILHA)
 # ------------------------------------------------------
 def calcular_kpis(df_base: pd.DataFrame) -> dict:
     df_tmp = df_base.copy()
-
-    # Converte datas para cálculo de expiração
-    if "Prazo para convocação" in df_tmp.columns:
-        df_tmp["Prazo para convocação_calc"] = df_tmp["Prazo para convocação"].apply(converter_para_calculo)
-
-    hoje = pd.Timestamp.today().normalize()
-
-    # Expirados por prazo
-    expirado_por_prazo = (
-        (df_tmp["Status"] != "Convocado")
-        & df_tmp["Prazo para convocação_calc"].notna()
-        & (df_tmp["Prazo para convocação_calc"] < hoje)
-    ) if "Prazo para convocação_calc" in df_tmp.columns else pd.Series([False] * len(df_tmp))
-
-    # Expirados por observação
-    expirado_por_obs = (
-        df_tmp["Obs"]
-        .fillna("")
-        .astype(str)
-        .str.contains("expirado para convocação", case=False, na=False)
-    ) if "Obs" in df_tmp.columns else pd.Series([False] * len(df_tmp))
-
-    expirados_mask = expirado_por_prazo | expirado_por_obs
 
     total = len(df_tmp)
     convocados = (df_tmp["Status"] == "Convocado").sum() if "Status" in df_tmp.columns else 0
     aguardando = (df_tmp["Status"] == "Aguardando convocação").sum() if "Status" in df_tmp.columns else 0
     recusou = (df_tmp["Status"] == "Recusou").sum() if "Status" in df_tmp.columns else 0
-    expirados = expirados_mask.sum()
+    
+    # CORREÇÃO: Conta "Expirado" (com E maiúsculo) que está na planilha
+    expirados = (
+        (df_tmp["Status"] == "Expirado") |  # Exato com E maiúsculo
+        (df_tmp["Status"] == "expirado")    # Exato com minúsculo (fallback)
+    ).sum() if "Status" in df_tmp.columns else 0
 
     return {
         "Total de candidatos": total,
