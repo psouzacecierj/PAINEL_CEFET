@@ -20,7 +20,7 @@ with col_logo:
     st.image("logo-cecierj.png", width=150)
 
 with col_titulo:
-    st.title("Controle de Cadastro de Reserva – CEFET/RJ")
+    st.title("Controle de Cadastro de Reserva de Engenharia de Produção CEFET/RJ – CEDERJ")
 
 # ------------------------------------------------------
 # LEITURA DA BASE (Google Sheets - CSV)
