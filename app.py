@@ -12,15 +12,28 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------
-# LOGO + TÍTULO
+# LOGO + TÍTULO (NOVO LAYOUT)
 # ------------------------------------------------------
-col_logo, col_titulo = st.columns([1, 4])
+col1, col2, col3 = st.columns([1, 3, 1])
 
-with col_logo:
-    st.image("logo-cecierj.png", width=150)
+with col1:
+    st.image("logo-cecierj.png", width=130)
 
-with col_titulo:
-    st.title("Controle de Cadastro Reserva – Engenharia de Produção CEFET/RJ – CEDERJ")
+with col2:
+    st.markdown(
+        """
+        <h1 style='text-align: center; margin-bottom: 0; color: #0b5c73;'>
+            Controle de Cadastro Reserva – Engenharia de Produção
+        </h1>
+        <h3 style='text-align: center; margin-top: 5px; color: #0b5c73;'>
+            CEFET/RJ – CEDERJ
+        </h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col3:
+    st.empty()
 
 # ------------------------------------------------------
 # LEITURA DA BASE (Google Sheets - CSV)
