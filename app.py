@@ -23,7 +23,7 @@ with col2:
     st.markdown(
         """
         <h1 style='text-align: center; margin-bottom: 0; color: #0b5c73;'>
-            Controle de Cadastro Reserva – Engenharia de Produção
+            Controle de Cadastro Reserva  Engenharia de Produção
         </h1>
         <h3 style='text-align: center; margin-top: 5px; color: #0b5c73;'>
             CEFET/RJ – CEDERJ
